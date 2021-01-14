@@ -1,6 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
 using System.Linq;
+using CsvHelper;
 
 namespace FirstBankOfSuncoast
 {
@@ -9,9 +12,9 @@ namespace FirstBankOfSuncoast
         class Transaction
         {
             public int Amount { get; set; }
-            public bool Checking = true;
-            public bool Deposit = true;
-            public DateTime Date = new DateTime();
+            public bool Checking { get; set; }
+            public bool Deposit { get; set; }
+            public DateTime Date { get; set; }
         }
 
 
@@ -25,8 +28,8 @@ namespace FirstBankOfSuncoast
 
         static string Menu()
         {
-            Console.WriteLine("\nADD - Add money to checking or savings");
-            Console.WriteLine("REMOVE - Remove money from checking or savings");
+            Console.WriteLine("\nADD - Deposit money to checking or savings");
+            Console.WriteLine("REMOVE - Withdraw money from checking or savings");
             Console.WriteLine("TRANSFER - Transfer money between checking and savings");
             Console.WriteLine("VIEW - View checking history, saving history, or total balances");
             Console.WriteLine("EXIT - Exit The First Bank of Suncoast's application\n");
@@ -82,15 +85,16 @@ namespace FirstBankOfSuncoast
             var newTransaction = new Transaction
             {
                 Checking = accountType,
-                Amount = addAmount
+                Amount = addAmount,
+                Deposit = true,
+                Date = new DateTime()
             };
             transactions.Add(newTransaction);
-            Console.Write($"$\n{newTransaction.Amount} successfully added to your ");
+            Console.Write($"\n${newTransaction.Amount} successfully added to your ");
             if (newTransaction.Checking)
                 Console.WriteLine("checking");
             else
                 Console.WriteLine("savings");
-            View(transactions, newTransaction.Checking, false);
             return transactions;
         }
 
@@ -104,7 +108,8 @@ namespace FirstBankOfSuncoast
             {
                 Checking = accountType,
                 Amount = removeAmount,
-                Deposit = false
+                Deposit = false,
+                Date = new DateTime()
             };
             if (newTransaction.Checking)
                 currentAccountTotal = View(checkingAccountTransactions, newTransaction.Checking, false);
@@ -119,12 +124,11 @@ namespace FirstBankOfSuncoast
             {
 
                 transactions.Add(newTransaction);
-                Console.Write($"$\n{newTransaction.Amount} successfully removed from your ");
+                Console.Write($"\n${newTransaction.Amount} successfully removed from your ");
                 if (newTransaction.Checking)
                     Console.WriteLine("checking");
                 else
                     Console.WriteLine("savings");
-                View(transactions, newTransaction.Checking, false);
             }
             return transactions;
         }
@@ -197,13 +201,30 @@ namespace FirstBankOfSuncoast
                 Console.WriteLine($"\nYou have ${accountTotal} in your savings\n");
             return accountTotal;
         }
+
+
+        static void WriteFile(List<Transaction> transactions)
+        {
+            var fileWriter = new StreamWriter("transactions.csv");
+            var csvWriter = new CsvWriter(fileWriter, CultureInfo.InvariantCulture);
+            csvWriter.WriteRecords(transactions);
+            fileWriter.Close();
+        }
+
+
         static void Main(string[] args)
         {
             Banner("    Welcome to The First Bank of Suncoast!");
 
+            TextReader fileReader;
+            if (File.Exists("transactions.csv"))
+                fileReader = new StreamReader("transactions.csv");
+            else
+                fileReader = new StringReader("");
 
-            // Pull transaction history from csv file
-            var transactions = new List<Transaction>();
+            var csvReader = new CsvReader(fileReader, CultureInfo.InvariantCulture);
+            var transactions = csvReader.GetRecords<Transaction>().ToList();
+            fileReader.Close();
 
             var choice = Menu();
             while (choice != "EXIT")
@@ -211,16 +232,19 @@ namespace FirstBankOfSuncoast
                 switch (choice)
                 {
                     case "ADD":
-                        AddTransaction(transactions, DetermineAccountType("adding"), DetermineFundAmount("remove"));
+                        AddTransaction(transactions, DetermineAccountType("adding"), DetermineFundAmount("add"));
+                        WriteFile(transactions);
                         choice = Menu();
                         break;
                     case "REMOVE":
                         RemoveTransaction(transactions, DetermineAccountType("removing"), DetermineFundAmount("remove"));
+                        WriteFile(transactions);
                         choice = Menu();
                         break;
                     case "TRANSFER":
                         TransferTransaction(transactions);
                         choice = Menu();
+                        WriteFile(transactions);
                         break;
                     case "VIEW":
                         ViewTransactions(transactions);
@@ -232,27 +256,6 @@ namespace FirstBankOfSuncoast
                         break;
                 }
             }
-            // If they enter add to account, ask user to which account would they'd like to add, and then ask them how much
-            // - Deposit is true
-            // - Checking is true if checking, else it's savings
-            // - Once dollar amount is entered, display new account balance to user
-            // - upload transaction history to csv file
-
-            // If they enter remove from account, ask the user which account they'd like to remove from, and then ask how much
-            // - Deposit is false
-            // - Checking is true if checking, else it's savings
-            // - Once dollar amount is entered, have user confirm their current request, allow transaction to happen if they have a high enough account balance and display new account balance to user
-            // - upload transaction history to csv file
-
-            // ### Adventure
-            // If they enter transfer between accounts, ask the user where they're transferring from, and then ask how much
-            // - A transfer is 2 transactions, take the dollar amount and add it to the to account, and take it from the from account
-            // - View total balances
-
-            // If they enter view checking or view savings, pull related transaction history info and display it to user in a reader friendly manner
-
-            // If they enter view total balances, show user their total amount in both their checking and savings
-
             Banner("Thank you for using The First Bank of Suncoast!");
         }
     }
